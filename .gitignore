@@ -1,0 +1,7 @@
+.venv
+.cache
+.coding
+tmp
+dist
+build
+*.egg-info

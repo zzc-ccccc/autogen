@@ -1,0 +1,8 @@
+autogen>=0.2.19
+requests>=2.31.0
+pathlib>=1.0.1
+pprint>=0.1
+pandas>=2.0.0
+yfinance>=0.2.35
+matplotlib>=3.7.0
+docker>=6.1.0
