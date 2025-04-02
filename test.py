@@ -1,14 +1,14 @@
 import autogen
 from autogen import AssistantAgent, UserProxyAgent, ConversableAgent, GroupChat, GroupChatManager
-import os
 
+# 模型配置
 model = "deepseek-r1:7b"
 
 ollama_config_list = [
     {
         "model": model,
         "base_url": "http://localhost:11434/v1",
-        "api_key": "ollama",
+        "api_key": "ollama",  # Required but unused
     }
 ]
 
@@ -20,6 +20,7 @@ llm_config = {
     "timeout": 300,
 }
 
+# 用户代理
 user_proxy = UserProxyAgent(
     name="user",
     system_message="A Human Head of Architecture",
@@ -31,6 +32,7 @@ user_proxy = UserProxyAgent(
     }
 )
 
+# 功能代理
 qa_assistant = AssistantAgent(
     name="qa_assistant",
     system_message="You are a helpful assistant specialized in question answering and factual lookup.",
@@ -61,40 +63,39 @@ summarize = ConversableAgent(
     llm_config=llm_config
 )
 
+# 智能管理器
 class SmartGroupChatManager(GroupChatManager):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.all_agents = [user_proxy, qa_assistant, planner_agent, tool_user, summarize]
-
-    def _get_agent_by_name(self, name):
-        for agent in self.all_agents:
-            if agent.name == name:
-                return agent
-        return None
-
     def _process_received_message(self, message, sender, silent):
         if sender.name == "user":
             message_lower = message.lower()
-            selected_agents = [self._get_agent_by_name("user")]
-
-            if any(k in message_lower for k in ["plan", "project", "timeline", "goal", "step"]):
-                selected_agents.append(self._get_agent_by_name("planner_agent"))
+            selected_agents = [self.groupchat.agents[0]]  # 始终包含user_proxy
+            
+            if any(k in message_lower for k in ["plan", "timeline", "goal", "project", "step"]):
+                selected_agents.append(planner_agent)
             elif any(k in message_lower for k in ["tool", "api", "run", "test", "use"]):
-                selected_agents.append(self._get_agent_by_name("tool_user"))
+                selected_agents.append(tool_user)
             else:
-                selected_agents.append(self._get_agent_by_name("qa_assistant"))
-
-            selected_agents.append(self._get_agent_by_name("summarize"))
-
+                selected_agents.append(qa_assistant)
+            
+            selected_agents.append(summarize)
+            print(f"[DEBUG] Selected agents: {[agent.name for agent in selected_agents]}")
+            
+            # 更新groupchat的agents列表
             self.groupchat.agents = selected_agents
-
+            
+            # 构建新的transition rules
             new_transitions = {}
-            for i in range(len(self.groupchat.agents) - 1):
-                new_transitions[self.groupchat.agents[i]] = [self.groupchat.agents[i + 1]]
+            for i in range(len(selected_agents)-1):
+                new_transitions[selected_agents[i]] = [selected_agents[i+1]]
+            
             self.groupchat.allowed_or_disallowed_speaker_transitions = new_transitions
-
+        
         return super()._process_received_message(message, sender, silent)
 
+# 所有 agent 注册到团队中
+all_agents = [user_proxy, qa_assistant, planner_agent, tool_user, summarize]
+
+# 初始transition rules
 transition_rules = {
     user_proxy: [qa_assistant, planner_agent, tool_user],
     qa_assistant: [summarize],
@@ -103,11 +104,11 @@ transition_rules = {
 }
 
 groupchat = GroupChat(
-    agents=[user_proxy, qa_assistant, planner_agent, tool_user, summarize],
+    agents=all_agents,
     messages=[],
     max_round=10,
     allowed_or_disallowed_speaker_transitions=transition_rules,
-    speaker_transitions_type="allowed"
+    speaker_transitions_type="allowed",
 )
 
 manager = SmartGroupChatManager(groupchat=groupchat, llm_config=llm_config)
