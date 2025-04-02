@@ -4,6 +4,7 @@ import json
 from autogen import AssistantAgent, UserProxyAgent, ConversableAgent, GroupChat, GroupChatManager
 from autogen.coding import LocalCommandLineCodeExecutor, DockerCommandLineCodeExecutor
 import os
+import re
 
 model = "deepseek-r1:7b"
 
@@ -47,26 +48,99 @@ rag_assistant = AssistantAgent(
     human_input_mode="NEVER"
 )
 
-translator = ConversableAgent(
-    name="translator",
-    system_message="""Use the output of the rag_assistant to summarize.""",
+data_processor = AssistantAgent(
+    name="data_processor",
+    system_message="""You are a data processing expert specialized in analyzing and processing data.
+    You can help with data analysis, visualization, statistical calculations, and data transformation tasks.""",
+    llm_config=llm_config,
+    code_execution_config=False,
+    human_input_mode="NEVER"
+)
+
+code_generator = AssistantAgent(
+    name="code_generator",
+    system_message="""You are a code generation expert specialized in writing and optimizing code.
+    You can help with generating code snippets, implementing algorithms, and providing coding solutions.""",
+    llm_config=llm_config,
+    code_execution_config=False,
+    human_input_mode="NEVER"
+)
+
+summarize = ConversableAgent(
+    name="summarize",
+    system_message="""Use the output of other agents to provide a clear and concise summary.""",
     llm_config=llm_config
 )
 
+class SmartGroupChatManager(GroupChatManager):
+    def _process_received_message(self, message, sender, silent):
+        if sender.name == "user":
+            # 分析用户问题，确定需要的agents
+            message_lower = message.lower()
+            selected_agents = [self.groupchat.agents[0]]  # 始终包含user_proxy
+            
+            # 检查是否包含数据处理相关关键词
+            data_keywords = ["数据", "分析", "统计", "可视化", "data", "analyze", "statistics", "visualization"]
+            needs_data_processing = any(keyword in message_lower for keyword in data_keywords)
+            
+            # 检查是否包含代码生成相关关键词
+            code_keywords = ["代码", "编程", "实现", "算法", "code", "program", "implement", "algorithm"]
+            needs_code_generation = any(keyword in message_lower for keyword in code_keywords)
+            
+            # 根据关键词选择合适的agent
+            if needs_data_processing:
+                # 如果需要数据处理，使用data_processor
+                for agent in self.groupchat.agents:
+                    if agent.name == "data_processor":
+                        selected_agents.append(agent)
+                        break
+            elif needs_code_generation:
+                # 如果需要代码生成，使用code_generator
+                for agent in self.groupchat.agents:
+                    if agent.name == "code_generator":
+                        selected_agents.append(agent)
+                        break
+            else:
+                # 如果没有匹配到特定agent，使用默认的rag_assistant
+                for agent in self.groupchat.agents:
+                    if agent.name == "rag_assistant":
+                        selected_agents.append(agent)
+                        break
+            
+            # 始终添加summarize作为最后一个agent
+            for agent in self.groupchat.agents:
+                if agent.name == "summarize":
+                    selected_agents.append(agent)
+                    break
+            
+            # 更新groupchat的agents列表
+            self.groupchat.agents = selected_agents
+            
+            # 构建新的transition rules
+            new_transitions = {}
+            for i in range(len(selected_agents)-1):
+                new_transitions[selected_agents[i]] = [selected_agents[i+1]]
+            
+            self.groupchat.allowed_or_disallowed_speaker_transitions = new_transitions
+        
+        return super()._process_received_message(message, sender, silent)
+
 transition_rules = {
-    user_proxy: [rag_assistant],
-    rag_assistant: [translator]
+    user_proxy: [rag_assistant, data_processor, code_generator],
+    rag_assistant: [summarize],
+    data_processor: [summarize],
+    code_generator: [summarize]
 }
 
 groupchat = autogen.GroupChat(
-        agents=[user_proxy, rag_assistant, translator], 
+        agents=[user_proxy, rag_assistant, data_processor, code_generator, summarize], 
         messages=[], 
         max_round=10,
         allowed_or_disallowed_speaker_transitions=transition_rules,
         speaker_transitions_type="allowed")
 
 
-manager = autogen.GroupChatManager(
+manager = SmartGroupChatManager(
         groupchat=groupchat, 
         llm_config=llm_config)
 
