@@ -7,3 +7,6 @@ build
 *.egg-info
 __pycache__
 .env
+history.json
+chat_history*
+chat_history/history.json
