@@ -7,7 +7,7 @@ import os
 from datetime import datetime
 from collections import defaultdict
 from task_manager import TaskManager
-from rag_assistant import create_rag_assistant
+from ragflow_tool import query_ragflow_service  # 导入工具函数
 
 model = "deepseek-r1:7b"
 
@@ -46,6 +46,17 @@ chat_assistant = AssistantAgent(
     system_message="""You are a knowledgeable assistant who can answer general questions and provide explanations on various topics.
     Focus on providing clear, accurate, and concise responses to user queries.
     Do not write code or perform technical analysis - defer those tasks to other specialists.""",
+    llm_config=llm_config
+)
+
+# RAGflow 知识专家 Agent
+ragflow_expert = autogen.AssistantAgent(
+    name="RAGflow_Knowledge_Expert",
+    system_message="你是一个专门回答 RAGflow 相关问题的助手。\n"
+                   "对于通用的编程或常识问题，请直接回答。\n"
+                   "如果问题明确涉及到需要查询 RAGflow 内部知识库、特定文档内容、或项目特定信息时，"
+                   "你**必须**使用 `query_ragflow_service` 工具来查找答案，然后根据工具返回的结果进行回复。\n"
+                   "不要自己编造关于 RAGflow 内部知识的答案。",
     llm_config=llm_config
 )
 
