@@ -49,7 +49,7 @@ class TaskManager:
             elif domain == 'documentation':
                 self.conversation_flow = ['doc_assistant', 'summary_assistant']
             elif domain == 'rag':
-                self.conversation_flow = ['ragiassis'ant, 'summary_assistant']
+                self.conversation_flow = ['rag_assistant', 'summary_assistant']
             else:
                 self.conversation_flow = ['chat_assistant', 'summary_assistant']
         else:
@@ -60,7 +60,7 @@ class TaskManager:
             elif domain == 'documentation':
                 self.conversation_flow = ['chat_assistant', 'doc_assistant', 'summary_assistant']
             elif domain == 'rag':
-                self.conversation_flow = ['rag_sassistan, 'summary_assistant']
+                self.conversation_flow = ['rag_assistant', 'summary_assistant']
             else:
                 self.conversation_flow = ['chat_assistant', 'summary_assistant']
         
