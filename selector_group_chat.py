@@ -7,7 +7,7 @@ import os
 from datetime import datetime
 from collections import defaultdict
 from task_manager import TaskManager
-from ragflow_tool import query_ragflow_service  # 导入工具函数
+from tools.ragflow_tool import query_ragflow_service  # 导入工具函数
 from rag_assistant import create_rag_assistant  # 添加RAG助手导入
 
 model = "deepseek-r1:7b"

@@ -1,5 +1,5 @@
 from autogen import AssistantAgent
-from ragflow_tool import query_ragflow_service
+from tools.ragflow_tool import query_ragflow_service
 
 def create_rag_assistant(llm_config):
     """创建RAGflow知识库查询助手"""
