@@ -7,6 +7,7 @@ import os
 from datetime import datetime
 from collections import defaultdict
 from task_manager import TaskManager
+from rag_assistant import create_rag_assistant
 
 model = "deepseek-r1:7b"
 
@@ -98,15 +99,18 @@ summary_assistant = AssistantAgent(
 
 # 对话历史保存功能已移至TaskManager类中
 
+# 创建RAG助手
+rag_assistant = create_rag_assistant(llm_config)
+
 # 创建任务管理器
 task_manager = TaskManager(
-    agents=[user_proxy, chat_assistant, coding_assistant, data_assistant, doc_assistant, summary_assistant],
+    agents=[user_proxy, chat_assistant, coding_assistant, data_assistant, doc_assistant, summary_assistant, rag_assistant],
     llm_config=llm_config
 )
 
 # 创建群聊
 groupchat = GroupChat(
-    agents=[user_proxy, chat_assistant, coding_assistant, data_assistant, doc_assistant, summary_assistant],
+    agents=[user_proxy, chat_assistant, coding_assistant, data_assistant, doc_assistant, summary_assistant, rag_assistant],
     messages=[],
     max_round=10,
     speaker_selection_method=task_manager.select_next_speaker  # 使用TaskManager的选择器方法

@@ -27,7 +27,9 @@ class TaskManager:
                     '挖掘', '预测', '聚类', '分类'],
             'documentation': ['document', 'documentation', 'reference', 'manual', 'guide', 'specification',
                             'instruction', 'tutorial', 'example', '文档', '参考', '手册', '指南', '规范',
-                            '说明', '教程', '示例']
+                            '说明', '教程', '示例'],
+            'rag': ['knowledge base', 'ragflow', 'rag', 'retrieval', 'query', 'search', 'lookup',
+                   '知识库', '检索', '查询', '搜索', '查找']
         }
         
     def analyze_task(self, message):
@@ -46,6 +48,8 @@ class TaskManager:
                 self.conversation_flow = ['data_assistant', 'summary_assistant']
             elif domain == 'documentation':
                 self.conversation_flow = ['doc_assistant', 'summary_assistant']
+            elif domain == 'rag':
+                self.conversation_flow = ['rag_assistant', 'summary_assistant']
             else:
                 self.conversation_flow = ['chat_assistant', 'summary_assistant']
         else:
@@ -55,6 +59,8 @@ class TaskManager:
                 self.conversation_flow = ['chat_assistant', 'data_assistant', 'summary_assistant']
             elif domain == 'documentation':
                 self.conversation_flow = ['chat_assistant', 'doc_assistant', 'summary_assistant']
+            elif domain == 'rag':
+                self.conversation_flow = ['rag_assistant', 'summary_assistant']
             else:
                 self.conversation_flow = ['chat_assistant', 'summary_assistant']
         
@@ -84,7 +90,8 @@ class TaskManager:
         domain_map = {
             'coding': next(a for a in self.agents if a.name == 'coding_assistant'),
             'data': next(a for a in self.agents if a.name == 'data_assistant'),
-            'documentation': next(a for a in self.agents if a.name == 'doc_assistant')
+            'documentation': next(a for a in self.agents if a.name == 'doc_assistant'),
+            'rag': next(a for a in self.agents if a.name == 'rag_assistant')
         }
         return domain_map.get(domain, next(a for a in self.agents if a.name == 'chat_assistant'))
     
