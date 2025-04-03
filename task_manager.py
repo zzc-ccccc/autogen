@@ -131,7 +131,7 @@ class TaskManager:
         os.makedirs('chat_history', exist_ok=True)
         
         try:
-            with open(history_file, 'r') as f:
+            with open(history_file, 'r', encoding='latin-1') as f:
                 history = json.load(f)
         except (FileNotFoundError, json.JSONDecodeError):
             history = {"chat_history": []}
@@ -154,7 +154,7 @@ class TaskManager:
         
         history["chat_history"].append(chat_record)
         
-        with open(history_file, 'w') as f:
+        with open(history_file, 'w', encoding='latin-1') as f:
             json.dump(history, f, indent=4, ensure_ascii=False)
     
     def select_next_speaker(self, last_speaker, groupchat):
