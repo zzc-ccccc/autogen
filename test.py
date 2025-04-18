@@ -9,7 +9,8 @@ import queue
 import time
 from pynput import keyboard
 import sys
-import pyttsx3
+from TTS.api import TTS
+import torch
 
 
 # 模型配置
@@ -134,44 +135,61 @@ def transcribe_audio(filename="command.wav"):
     result = model.transcribe(filename)
     return result["text"]
 
-def text_to_speech(text):
-    # 初始化pyttsx3引擎
-    engine = pyttsx3.init()
-    engine.setProperty('rate', 200)    # 设置语速
-    engine.setProperty('volume', 0.7)  # 设置音量
+# 缓存TTS模型
+_tts_models = {}
+
+def text_to_speech(text, volume_scale=0.1, speed_scale=1.0):
+    # 使用默认的TTS模型
+    model_name = "tts_models/en/ljspeech/tacotron2-DDC"
     
-    # 创建停止标志
-    stop_event = threading.Event()
-    
-    def on_press(key):
-        try:
-            if key == keyboard.KeyCode.from_char('q'):
-                print("\n结束语音输出...")
-                stop_event.set()
-                engine.stop()
-                return False
-        except Exception as e:
-            print(f"Error handling key press: {e}")
-    
-    # 启动键盘监听器
-    listener = keyboard.Listener(on_press=on_press)
-    listener.start()
-    
-    def speak():
-        try:
-            print("\n开始语音输出（按q键结束）...")
-            if not stop_event.is_set():
-                engine.say(text)
-                engine.runAndWait()
-        finally:
+    try:
+        # 初始化TTS模型
+        tts = TTS(model_name)
+        tts.to("cuda" if torch.cuda.is_available() else "cpu")
+        
+        # 创建停止事件和键盘监听器
+        stop_event = threading.Event()
+        
+        def on_press(key):
+            try:
+                if key == keyboard.KeyCode.from_char('q'):
+                    print("\nStopping voice output...")
+                    stop_event.set()
+                    sd.stop()
+                    return False
+            except Exception as e:
+                print(f"Error handling key press: {e}")
+        
+        # 启动键盘监听
+        listener = keyboard.Listener(on_press=on_press)
+        listener.start()
+        
+        # 生成语音，禁用音标显示
+        print("\nGenerating voice output (press 'q' to stop)...")
+        wav = tts.tts(text=text, use_phonemes=False)
+        
+        # 音频后处理
+        wav = np.array(wav)
+        # 先进行归一化，再调整音量
+        wav = wav / np.max(np.abs(wav))
+        wav = wav * volume_scale
+        
+        # 播放音频
+        sd.play(wav, samplerate=22050, blocking=False)
+        
+        # 等待播放完成或停止信号
+        while sd.get_stream() and sd.get_stream().active and not stop_event.is_set():
+            time.sleep(0.1)
+            
+        # 清理资源
+        listener.stop()
+        sd.stop()
+        
+    except Exception as e:
+        print(f"Error in text-to-speech: {e}")
+        if 'listener' in locals():
             listener.stop()
-            if not stop_event.is_set():
-                engine.stop()
-    
-    # 在新线程中运行语音输出
-    speech_thread = threading.Thread(target=speak)
-    speech_thread.start()
-    speech_thread.join()
+        sd.stop()
 
 class SmartGroupChatManager(GroupChatManager):
     def _process_received_message(self, message, sender, silent):
