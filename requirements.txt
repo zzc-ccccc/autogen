@@ -4,3 +4,4 @@ numpy>=1.20.0
 openai-whisper==20231117
 torch>=2.0.0
 torchaudio>=2.0.0
+TTS==0.22.0

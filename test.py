@@ -9,6 +9,8 @@ import queue
 import time
 from pynput import keyboard
 import sys
+import pyttsx3
+
 
 # 模型配置
 model = "deepseek-r1:7b"
@@ -60,30 +62,6 @@ voice_agent = AssistantAgent(
         "work_dir": "groupchat",
         "use_docker": False,
     },
-    human_input_mode="NEVER"
-)
-
-qa_assistant = AssistantAgent(
-    name="qa_assistant",
-    system_message="You are a helpful assistant specialized in question answering and factual lookup.",
-    llm_config=llm_config,
-    code_execution_config=False,
-    human_input_mode="NEVER"
-)
-
-planner_agent = AssistantAgent(
-    name="planner_agent",
-    system_message="You are a strategic planning agent who can break down goals into actionable steps.",
-    llm_config=llm_config,
-    code_execution_config=False,
-    human_input_mode="NEVER"
-)
-
-tool_user = AssistantAgent(
-    name="tool_user",
-    system_message="You are responsible for calling tools or APIs and reporting results.",
-    llm_config=llm_config,
-    code_execution_config=False,
     human_input_mode="NEVER"
 )
 
@@ -156,6 +134,45 @@ def transcribe_audio(filename="command.wav"):
     result = model.transcribe(filename)
     return result["text"]
 
+def text_to_speech(text):
+    # 初始化pyttsx3引擎
+    engine = pyttsx3.init()
+    engine.setProperty('rate', 200)    # 设置语速
+    engine.setProperty('volume', 0.7)  # 设置音量
+    
+    # 创建停止标志
+    stop_event = threading.Event()
+    
+    def on_press(key):
+        try:
+            if key == keyboard.KeyCode.from_char('q'):
+                print("\n结束语音输出...")
+                stop_event.set()
+                engine.stop()
+                return False
+        except Exception as e:
+            print(f"Error handling key press: {e}")
+    
+    # 启动键盘监听器
+    listener = keyboard.Listener(on_press=on_press)
+    listener.start()
+    
+    def speak():
+        try:
+            print("\n开始语音输出（按q键结束）...")
+            if not stop_event.is_set():
+                engine.say(text)
+                engine.runAndWait()
+        finally:
+            listener.stop()
+            if not stop_event.is_set():
+                engine.stop()
+    
+    # 在新线程中运行语音输出
+    speech_thread = threading.Thread(target=speak)
+    speech_thread.start()
+    speech_thread.join()
+
 class SmartGroupChatManager(GroupChatManager):
     def _process_received_message(self, message, sender, silent):
         if sender.name == "user":
@@ -171,13 +188,10 @@ class SmartGroupChatManager(GroupChatManager):
                 message_lower = message.lower()
             selected_agents = [self.groupchat.agents[0]]  # Always include user_proxy
             
-            if any(k in message_lower for k in ["plan", "timeline", "goal", "project", "step"]):
-                selected_agents.append(planner_agent)
-            elif any(k in message_lower for k in ["tool", "api", "run", "test", "use"]):
-                selected_agents.append(tool_user)
-            else:
-                selected_agents.append(qa_assistant)
+            # 添加voice_agent进行语音处理
+            selected_agents.append(voice_agent)
             
+            # 最后添加summarize进行总结
             selected_agents.append(summarize)
             print(f"[DEBUG] Selected agents: {[agent.name for agent in selected_agents]}")
             
@@ -191,18 +205,21 @@ class SmartGroupChatManager(GroupChatManager):
             
             self.groupchat.allowed_or_disallowed_speaker_transitions = new_transitions
         
+        # 只在summarize agent输出最终总结时进行语音播报
+        if sender.name == "summarize":
+            print("\nGenerating voice response...")
+            text_to_speech(message)
+            print("Voice response completed.")
+        
         return super()._process_received_message(message, sender, silent)
 
 # 所有 agent 注册到团队中
-all_agents = [user_proxy, voice_agent, qa_assistant, planner_agent, tool_user, summarize]
+all_agents = [user_proxy, voice_agent, summarize]
 
 # 初始transition rules
 transition_rules = {
-    user_proxy: [voice_agent, qa_assistant, planner_agent, tool_user],
-    voice_agent: [qa_assistant, planner_agent, tool_user],
-    qa_assistant: [summarize],
-    planner_agent: [summarize],
-    tool_user: [summarize]
+    user_proxy: [voice_agent],
+    voice_agent: [summarize]
 }
 
 groupchat = GroupChat(
@@ -217,11 +234,14 @@ manager = SmartGroupChatManager(groupchat=groupchat, llm_config=llm_config)
 
 if __name__ == "__main__":
     print("Please select input method:")
-    print("1. Press 'V' for voice input (hold spacebar to speak)")
+    print("1. Press 'V' for voice input/output (hold spacebar to speak)")
     print("2. Directly input your question")
     choice = input("Please choose (V/direct input): ").strip()
     
-    if choice.upper() == 'V':
+    # 设置语音模式标志
+    manager.voice_mode = (choice.upper() == 'V')
+    
+    if manager.voice_mode:
         audio_data = record_audio_hold()
         if audio_data is not None:
             save_audio(audio_data)
